@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        .range-slider {
+            position: relative;
+            width: 300px;
+            height: 50px;
+            margin: 20px;
+        }
+
+        /* 2つのスライダーを完全に重ねる */
+        input[type="range"] {
+            position: absolute;
+            width: 100%;
+            pointer-events: none; /* 下のスライダーを操作可能にする */
+            appearance: none;
+            -webkit-appearance: none;
+            background: none;
+        }
+
+        /* つまみ(ハンドル)部分のスタイル */
+        input[type="range"]::-webkit-slider-thumb {
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+            pointer-events: auto; /* つまみだけはクリック・ドラッグ可能にする */
+            appearance: none;
+            -webkit-appearance: none;
+            margin-top: -8px;
+        }
+
+        /* バー(線)の土台 */
+        .slider-track {
+            position: absolute;
+            width: 100%;
+            height: 5px;
+            background: #ddd;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+
+<div class="range-slider">
+    <div class="slider-track"></div>
+    <input type="range" id="lower" min="0" max="100" value="20">
+    <input type="range" id="upper" min="0" max="100" value="80">
+</div>
+
+<p>値: <span id="res">20 - 80</span></p>
+
+<script>
+    const lower = document.getElementById('lower');
+    const upper = document.getElementById('upper');
+    const res = document.getElementById('res');
+
+    function update() {
+        let lowVal = parseInt(lower.value);
+        let uppVal = parseInt(upper.value);
+
+        // 追い越し禁止処理
+        if (lowVal > uppVal) {
+            // 操作した方を固定して、もう一方を動かさないようにする
+            // ここでは簡易的に、重なったらそれ以上進まない制御
+            if (event.target.id === 'lower') {
+                lower.value = uppVal;
+            } else {
+                upper.value = lowVal;
+            }
+        }
+        res.textContent = `${lower.value} - ${upper.value}`;
+    }
+
+    lower.addEventListener('input', update);
+    upper.addEventListener('input', update);
+</script>
+
+</body>
+</html>
