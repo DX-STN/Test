@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style>
+        body { font-family: sans-serif; padding: 40px 20px; }
+
+        .range-slider {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            height: 60px;
+            margin: 0 auto;
+            touch-action: none; 
+        }
+
+        input[type="range"] {
+            position: absolute;
+            width: 100%;
+            pointer-events: none;
+            appearance: none;
+            -webkit-appearance: none;
+            background: none;
+            margin: 0;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        /* 共通のつまみスタイル */
+        input[type="range"]::-webkit-slider-thumb {
+            height: 34px;
+            width: 34px;
+            border-radius: 50%;
+            cursor: pointer;
+            pointer-events: auto;
+            appearance: none;
+            -webkit-appearance: none;
+            border: 3px solid #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        /* 開始点（青） */
+        #lower::-webkit-slider-thumb {
+            background: #007bff;
+        }
+
+        /* 終了点（赤） */
+        #upper::-webkit-slider-thumb {
+            background: #dc3545;
+        }
+
+        .slider-track {
+            position: absolute;
+            width: 100%;
+            height: 10px;
+            background: #eee;
+            top: 50%;
+            transform: translateY(-50%);
+            border-radius: 10px;
+            z-index: -1;
+        }
+
+        .values { 
+            text-align: center; 
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+        .val-low { color: #007bff; font-weight: bold; }
+        .val-upp { color: #dc3545; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="values">
+    <span class="val-low" id="res-low">20</span>
+    <span>〜</span>
+    <span class="val-upp" id="res-upp">80</span>
+</div>
+
+<div class="range-slider">
+    <div class="slider-track"></div>
+    <!-- 開始点: lower -->
+    <input type="range" id="lower" min="0" max="100" value="20">
+    <!-- 終了点: upper -->
+    <input type="range" id="upper" min="0" max="100" value="80">
+</div>
+
+<script>
+    const lower = document.getElementById('lower');
+    const upper = document.getElementById('upper');
+    const resLow = document.getElementById('res-low');
+    const resUpp = document.getElementById('res-upp');
+
+    function update(e) {
+        let lowVal = parseInt(lower.value);
+        let uppVal = parseInt(upper.value);
+
+        // 追い越し防止
+        if (lowVal > uppVal) {
+            if (e.target.id === 'lower') {
+                lower.value = uppVal;
+            } else {
+                upper.value = lowVal;
+            }
+        }
+
+        // 重なった時に操作した方を前面に出す（z-index制御）
+        lower.style.zIndex = (e.target.id === 'lower') ? "10" : "1";
+        upper.style.zIndex = (e.target.id === 'upper') ? "10" : "1";
+
+        resLow.textContent = lower.value;
+        resUpp.textContent = upper.value;
+    }
+
+    lower.addEventListener('input', update);
+    upper.addEventListener('input', update);
+</script>
+
+</body>
+</html>
