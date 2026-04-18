@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: sans-serif; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; background: #f0f0f0; }
+
+        /* レイアウトコンテナ（左に縦スライダー用の余白） */
+        .editor-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px; /* スマホ向けに少し縮小可 */
+            aspect-ratio: 1 / 1;
+            margin-left: 40px; /* 縦スライダー分の余白 */
+        }
+
+        #canvas-wrapper {
+            width: 100%; height: 100%;
+            background: #fff; border: 1px solid #333;
+            position: relative; overflow: hidden;
+        }
+        canvas { width: 100%; height: 100%; display: block; object-fit: contain; }
+
+        #selection-box {
+            position: absolute; border: 1px solid #fff;
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
+            pointer-events: none; z-index: 5;
+        }
+
+        /* スライダー配置 */
+        .slider-container { position: relative; touch-action: none; }
+        input[type="range"] {
+            position: absolute; appearance: none; -webkit-appearance: none;
+            background: none; pointer-events: none; margin: 0;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            width: 24px; height: 18px; cursor: pointer; pointer-events: auto;
+            appearance: none; -webkit-appearance: none; border: 1px solid #fff;
+        }
+
+        /* 縦（右側） */
+        .ver-container { position: absolute; right: -35px; top: 0; width: 30px; height: 100%; }
+        .ver-container input { width: 500px; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(90deg); }
+        #v-low::-webkit-slider-thumb { background: #007bff; border-radius: 15px 15px 0 0; transform: translateY(-14px); }
+        #v-upp::-webkit-slider-thumb { background: #dc3545; border-radius: 0 0 15px 15px; transform: translateY(14px); }
+
+        /* 横（下側） */
+        .hor-container { width: 100%; height: 35px; margin-top: 5px; }
+        .hor-container input { width: 100%; top: 50%; transform: translateY(-50%); }
+        #h-low::-webkit-slider-thumb { background: #007bff; border-radius: 15px 15px 0 0; transform: translateY(-14px); }
+        #h-upp::-webkit-slider-thumb { background: #dc3545; border-radius: 0 0 15px 15px; transform: translateY(14px); }
+
+        .track-v { position: absolute; height: 100%; width: 4px; background: #333; left: 50%; transform: translateX(-50%); }
+        .track-h { position: absolute; width: 100%; height: 4px; background: #333; top: 50%; transform: translateY(-50%); }
+
+        /* 数値入力（1行） */
+        .info-row { 
+            display: flex; gap: 5px; align-items: center; font-size: 12px; 
+            background: #fff; padding: 5px; width: 100%; justify-content: center;
+        }
+        .info-row input { width: 45px; padding: 2px; text-align: center; }
+
+        /* 画像情報表示エリア */
+        .file-info-area { width: 100%; max-width: 500px; margin-top: 15px; text-align: left; font-size: 14px; }
+        .btn-main { margin-top: 10px; padding: 10px 20px; background: #333; color: #fff; border: none; border-radius: 5px; width: 100%; }
+    </style>
+</head>
+<body>
+
+    <input type="file" id="image-input" accept="image/*" style="margin-bottom:10px;">
+
+    <div class="editor-container">
+        <div id="canvas-wrapper">
+            <canvas id="main-canvas"></canvas>
+            <div id="selection-box"></div>
+        </div>
+        <!-- 縦スライダー（右） -->
+        <div class="slider-container ver-container">
+            <div class="track-v"></div>
+            <input type="range" id="v-low" min="1" max="550" value="50">
+            <input type="range" id="v-upp" min="1" max="550" value="500">
+        </div>
+    </div>
+
+    <!-- 横スライダー（下） -->
+    <div class="slider-container hor-container" style="margin-left: 40px; width: calc(100% - 40px); max-width: 500px;">
+        <div class="track-h"></div>
+        <input type="range" id="h-low" min="1" max="550" value="50">
+        <input type="range" id="h-upp" min="1" max="550" value="500">
+    </div>
+
+    <!-- 数値入力（1行コンパクト） -->
+    <div class="info-row">
+        X: <input type="number" id="in-h-low">〜<input type="number" id="in-h-upp">
+        Y: <input type="number" id="in-v-low">〜<input type="number" id="in-v-upp">
+    </div>
+
+    <!-- 画像情報とボタン -->
+    <div class="file-info-area">
+        <div>ファイル名: <span id="file-name">-</span></div>
+        <div>サイズ: <span id="file-size">-</span></div>
+        <button class="btn-main" id="process-btn">この範囲で処理する</button>
+    </div>
+
+<script>
+    const canvas = document.getElementById('main-canvas');
+    const ctx = canvas.getContext('2d');
+    const box = document.getElementById('selection-box');
+    
+    // 画像情報の変数
+    let currentFileName = "";
+    let currentFileSize = "";
+    let activeImg = null;
+
+    const inputs = {
+        hl: document.getElementById('h-low'), hu: document.getElementById('h-upp'),
+        vl: document.getElementById('v-low'), vu: document.getElementById('v-upp'),
+        ihl: document.getElementById('in-h-low'), ihu: document.getElementById('in-h-upp'),
+        ivl: document.getElementById('in-v-low'), ivu: document.getElementById('in-v-upp')
+    };
+
+    document.getElementById('image-input').onchange = function(e) {
+        const file = e.target.files[0];
+        if(!file) return;
+
+        // 情報を変数に格納
+        currentFileName = file.name;
+        currentFileSize = (file.size / 1024).toFixed(1) + " KB";
+        
+        // 画面に表示
+        document.getElementById('file-name').textContent = currentFileName;
+        document.getElementById('file-size').textContent = currentFileSize;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => { activeImg = img; draw(); };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+        
+        this.value = ''; // 連続選択を可能にする
+    };
+
+    function draw() {
+        canvas.width = 550; canvas.height = 550;
+        if(activeImg) {
+            const ratio = Math.min(550 / activeImg.width, 550 / activeImg.height);
+            const w = activeImg.width * ratio; const h = activeImg.height * ratio;
+            ctx.drawImage(activeImg, (550-w)/2, (550-h)/2, w, h);
+        }
+    }
+
+    function updateUI(e) {
+        if(parseInt(inputs.hl.value) > parseInt(inputs.hu.value)) {
+            if(e?.target === inputs.hl) inputs.hl.value = inputs.hu.value; else inputs.hu.value = inputs.hl.value;
+        }
+        if(parseInt(inputs.vl.value) > parseInt(inputs.vu.value)) {
+            if(e?.target === inputs.vl) inputs.vl.value = inputs.vu.value; else inputs.vu.value = inputs.vl.value;
+        }
+
+        inputs.ihl.value = inputs.hl.value; inputs.ihu.value = inputs.hu.value;
+        inputs.ivl.value = inputs.vl.value; inputs.ivu.value = inputs.vu.value;
+
+        // boxの表示（%で計算するとレスポンシブに対応しやすい）
+        const perc = 100 / 550;
+        box.style.left = (inputs.hl.value - 1) * perc + "%";
+        box.style.top = (inputs.vl.value - 1) * perc + "%";
+        box.style.width = (inputs.hu.value - inputs.hl.value) * perc + "%";
+        box.style.height = (inputs.vu.value - inputs.vl.value) * perc + "%";
+    }
+
+    [inputs.hl, inputs.hu, inputs.vl, inputs.vu].forEach(el => el.oninput = updateUI);
+    updateUI();
+</script>
+</body>
+</html>
