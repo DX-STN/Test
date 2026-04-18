@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: sans-serif; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; }
+
+        /* 右上エリア */
+        .header { width: 100%; max-width: 350px; display: flex; justify-content: flex-end; margin-bottom: 5px; }
+        .file-controls { display: flex; flex-direction: column; gap: 4px; width: 160px; }
+        .info-field { border: 1px solid #333; padding: 3px; font-size: 11px; min-height: 22px; background: #fff; }
+        .btn-select { background: #eee; border: 1px solid #333; padding: 3px; cursor: pointer; font-size: 11px; border-radius: 2px; }
+
+        /* メインGrid */
+        .editor-grid { display: grid; grid-template-columns: 300px 40px; grid-template-rows: 300px 40px; width: 340px; }
+        #canvas-wrapper { grid-column: 1; grid-row: 1; position: relative; border: 1px solid #333; background: #eee; overflow: hidden; }
+        canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+        #selection-box { position: absolute; border: 1px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5); pointer-events: none; z-index: 5; }
+
+        /* スライダー共通 */
+        .slider-box { position: relative; touch-action: none; }
+        input[type="range"] { position: absolute; appearance: none; -webkit-appearance: none; background: none; pointer-events: none; margin: 0; }
+        input[type="range"]::-webkit-slider-thumb { width: 22px; height: 18px; cursor: pointer; pointer-events: auto; appearance: none; -webkit-appearance: none; border: 1px solid #333; }
+
+        /* 縦スライダー(右) */
+        .ver-box { grid-column: 2; grid-row: 1; }
+        .v-track { position: absolute; height: 100%; width: 4px; background: #333; left: 50%; transform: translateX(-50%); }
+        .v-input { width: 300px; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(90deg); }
+        #v-low::-webkit-slider-thumb { background: #007bff; border-radius: 10px 10px 0 0; transform: translateY(-14px); }
+        #v-upp::-webkit-slider-thumb { background: #dc3545; border-radius: 0 0 10px 10px; transform: translateY(14px); }
+
+        /* 横スライダー(下) */
+        .hor-box { grid-column: 1; grid-row: 2; }
+        .h-track { position: absolute; width: 100%; height: 4px; background: #333; top: 50%; transform: translateY(-50%); }
+        .h-input { width: 100%; top: 50%; left: 0; transform: translateY(-50%); }
+        #h-low::-webkit-slider-thumb { background: #007bff; border-radius: 10px 10px 0 0; transform: translateY(-14px); }
+        #h-upp::-webkit-slider-thumb { background: #dc3545; border-radius: 0 0 10px 10px; transform: translateY(14px); }
+
+        /* 数値入力行 (横・縦の順) */
+        .values-row { margin-top: 10px; display: flex; gap: 4px; font-size: 13px; align-items: center; width: 340px; justify-content: center; }
+        .values-row input { width: 45px; text-align: center; border: 1px solid #333; padding: 2px; font-size: 12px; }
+
+        /* 拡大コントロール */
+        .zoom-controls { margin-top: 10px; width: 340px; display: flex; align-items: center; justify-content: space-between; position: relative; }
+        #zoom-range { position: static; appearance: none; background: #333; height: 4px; width: 80px; pointer-events: auto; }
+        #zoom-range::-webkit-slider-thumb { width: 20px; height: 20px; border-radius: 50%; background: #000; border: none; transform: none; }
+        .zoom-val { font-size: 13px; display: flex; align-items: center; gap: 3px; }
+        .zoom-val input { width: 45px; text-align: center; border: 1px solid #333; }
+        .size-disp { border: 1px solid #333; padding: 4px; font-size: 12px; min-width: 100px; text-align: center; }
+
+        /* 吹き出し💬 */
+        #alert-bubble {
+            position: absolute; top: -45px; left: 50%; transform: translateX(-50%);
+            background: #ffc107; color: #000; padding: 5px 10px; border-radius: 8px;
+            font-size: 11px; font-weight: bold; display: none; z-index: 100;
+        }
+        #alert-bubble::after { content: ""; position: absolute; bottom: -8px; left: 50%; margin-left: -8px; border: 8px solid transparent; border-top-color: #ffc107; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="file-controls">
+            <div class="info-field" id="fn">画像未選択</div>
+            <div class="info-field" id="fs">画像サイズ</div>
+            <button class="btn-select" onclick="document.getElementById('img-in').click()">ファイル選択</button>
+            <input type="file" id="img-in" accept="image/*" style="display:none">
+        </div>
+    </div>
+
+    <div class="editor-grid">
+        <div id="canvas-wrapper">
+            <canvas id="cv"></canvas>
+            <div id="selection-box"></div>
+        </div>
+        <div class="slider-box ver-box"><div class="v-track"></div><input type="range" id="v-low" class="v-input" min="1"><input type="range" id="v-upp" class="v-input" min="1"></div>
+        <div class="slider-box hor-box"><div class="h-track"></div><input type="range" id="h-low" class="h-input" min="1"><input type="range" id="h-upp" class="h-input" min="1"></div>
+    </div>
+
+    <div class="values-row">
+        横:<input type="number" id="in-hl">〜<input type="number" id="in-hu">
+        縦:<input type="number" id="in-vl">〜<input type="number" id="in-vu">
+    </div>
+
+    <div class="zoom-controls">
+        <div id="alert-bubble">512dot以内で選択して下さい</div>
+        <input type="range" id="zoom-range" min="0.1" max="20.0" step="0.1" value="1.0">
+        <div class="zoom-val">倍率:<input type="number" id="in-zoom" step="0.1"></div>
+        <div class="size-disp" id="sel-size">選択範囲サイズ</div>
+    </div>
+
+<script>
+    const cv = document.getElementById('cv');
+    const ctx = cv.getContext('2d');
+    const box = document.getElementById('selection-box');
+    const bubble = document.getElementById('alert-bubble');
+    const imgIn = document.getElementById('img-in');
+
+    const el = {
+        hl: document.getElementById('h-low'), hu: document.getElementById('h-upp'),
+        vl: document.getElementById('v-low'), vu: document.getElementById('v-upp'),
+        ihl: document.getElementById('in-hl'), ihu: document.getElementById('in-hu'),
+        ivl: document.getElementById('in-vl'), ivu: document.getElementById('in-vu'),
+        zm: document.getElementById('zoom-range'), izm: document.getElementById('in-zoom'),
+        sz: document.getElementById('sel-size'), fn: document.getElementById('fn'), fs: document.getElementById('fs')
+    };
+
+    let activeImg = null;
+    let currentScale = 1.0;
+    let timer = null;
+
+    function showAlert() {
+        bubble.style.display = "block";
+        if(timer) clearTimeout(timer);
+        timer = setTimeout(() => { bubble.style.display = "none"; }, 2500);
+    }
+
+    imgIn.onchange = (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        el.fn.textContent = file.name;
+        const img = new Image();
+        img.onload = () => {
+            activeImg = img;
+            el.fs.textContent = `${img.width} × ${img.height} px`;
+            [el.hl, el.hu, el.ihl, el.ihu].forEach(i => i.max = img.width);
+            [el.vl, el.vu, el.ivl, el.ivu].forEach(i => i.max = img.height);
+            sync();
+        };
+        img.src = URL.createObjectURL(file);
+        e.target.value = '';
+    };
+
+    function sync(e) {
+        if (e && e.target.type === 'number' && e.target.value === "") return;
+        
+        if (e && e.target.type === 'number') {
+            if(e.target === el.izm) el.zm.value = el.izm.value;
+            else { el.hl.value = el.ihl.value; el.hu.value = el.ihu.value; el.vl.value = el.ivl.value; el.vu.value = el.ivu.value; }
+        }
+
+        let hl = parseInt(el.hl.value), hu = parseInt(el.hu.value), vl = parseInt(el.vl.value), vu = parseInt(el.vu.value);
+
+        // 512dot制限
+        if ((hu - hl + 1) > 512 || (vu - vl + 1) > 512) {
+            showAlert();
+            if (e && (e.target === el.hu || e.target === el.ihu)) el.hu.value = hl + 511;
+            if (e && (e.target === el.vu || e.target === el.ivu)) el.vu.value = vl + 511;
+            hu = parseInt(el.hu.value); vu = parseInt(el.vu.value);
+        }
+
+        if (hl > hu) { if(e?.target === el.hl) el.hl.value = hu; else el.hu.value = hl; }
+        if (vl > vu) { if(e?.target === el.vl) el.vl.value = vu; else el.vu.value = vl; }
+
+        currentScale = parseFloat(el.zm.value);
+        el.ihl.value = el.hl.value; el.ihu.value = el.hu.value;
+        el.ivl.value = el.vl.value; el.ivu.value = el.vu.value;
+        el.izm.value = currentScale.toFixed(1);
+        
+        const sw = el.hu.value - el.hl.value + 1;
+        const sh = el.vu.value - el.vl.value + 1;
+        el.sz.textContent = activeImg ? `${sw} × ${sh} dot` : "選択範囲サイズ";
+
+        draw();
+    }
+
+    function draw() {
+        if(!activeImg) return;
+        cv.width = 300; cv.height = 300;
+        ctx.clearRect(0,0,300,300);
+        ctx.imageSmoothingEnabled = false;
+
+        // app.jsAと同じく、currentScaleを使って描画
+        // 表示枠(300px)の左上を開始点(hl, vl)に固定して拡大描画
+        ctx.save();
+        ctx.scale(currentScale, currentScale);
+        ctx.drawImage(activeImg, -(el.hl.value - 1), -(el.vl.value - 1));
+        ctx.restore();
+        
+        // 選択範囲枠の描画
+        box.style.left = "0px";
+        box.style.top = "0px";
+        box.style.width = (el.hu.value - el.hl.value + 1) * currentScale + "px";
+        box.style.height = (el.vu.value - el.vl.value + 1) * currentScale + "px";
+    }
+
+    [el.hl, el.hu, el.vl, el.vu, el.zm].forEach(i => i.oninput = sync);
+    [el.ihl, el.ihu, el.ivl, el.ivu, el.izm].forEach(i => {
+        i.onchange = sync;
+        i.onkeydown = (ev) => { if(ev.key === 'Enter') { sync(ev); ev.target.blur(); } };
+    });
+</script>
+</body>
+</html>
