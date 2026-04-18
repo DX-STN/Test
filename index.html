@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: sans-serif; margin: 0; padding: 10px; background: #fff; color: #333; display: flex; flex-direction: column; align-items: center; }
+
+        /* 上部エリア（画像プレビュー・情報・ボタン） */
+        .top-section { width: 100%; max-width: 370px; display: flex; gap: 10px; margin-bottom: 20px; }
+        .preview-box { width: 150px; height: 150px; background: #eee; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+        .file-info-controls { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+        .info-box { border: 1px solid #333; padding: 5px; font-size: 11px; min-height: 2.5em; overflow: hidden; word-break: break-all; }
+        .btn-upload { background: #fff; border: 1px solid #333; padding: 5px; cursor: pointer; font-size: 12px; }
+
+        /* 中段：キャンバスと縦スライダー */
+        .canvas-area { position: relative; width: 100%; max-width: 330px; display: flex; align-items: flex-start; }
+        #canvas-wrapper { position: relative; flex: 1; aspect-ratio: 1/1; background: #eee; border: 1px solid #333; overflow: hidden; }
+        canvas { width: 100%; height: 100%; object-fit: contain; }
+        #selection-box { position: absolute; border: 1px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5); pointer-events: none; z-index: 5; }
+
+        /* 縦スライダー（右側） */
+        .ver-slider-container { width: 30px; height: 100%; position: relative; margin-left: 5px; touch-action: none; }
+        .track-v { position: absolute; height: 100%; width: 4px; background: #333; left: 50%; transform: translateX(-50%); }
+
+        /* 下段：横スライダー */
+        .hor-slider-container { width: calc(100% - 35px); max-width: 300px; height: 30px; position: relative; margin-right: 35px; margin-top: 5px; touch-action: none; }
+        .track-h { position: absolute; width: 100%; height: 4px; background: #333; top: 50%; transform: translateY(-50%); }
+
+        /* スライダー共通（ツマミ位置ずらし） */
+        input[type="range"] { position: absolute; appearance: none; -webkit-appearance: none; background: none; pointer-events: none; margin: 0; }
+        input[type="range"]::-webkit-slider-thumb { width: 22px; height: 16px; cursor: pointer; pointer-events: auto; appearance: none; -webkit-appearance: none; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        
+        #h-low, #v-low { z-index: 3; }
+        #h-low::-webkit-slider-thumb, #v-low::-webkit-slider-thumb { background: #007bff; border-radius: 10px 10px 0 0; transform: translateY(-13px); }
+        #h-upp::-webkit-slider-thumb, #v-upp::-webkit-slider-thumb { background: #dc3545; border-radius: 0 0 10px 10px; transform: translateY(13px); }
+        
+        .hor-slider-container input { width: 100%; top: 50%; transform: translateY(-50%); }
+        .ver-slider-container input { width: 300px; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(90deg); }
+
+        /* 範囲指定値表示（1行） */
+        .value-row { margin-top: 15px; font-size: 13px; font-weight: bold; display: flex; gap: 5px; align-items: center; }
+        .value-row input { width: 45px; text-align: center; border: 1px solid #333; padding: 2px; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <!-- 上部：プレビューとファイル情報 -->
+    <div class="top-section">
+        <div class="preview-box" id="p-box">PREVIEW</div>
+        <div class="file-info-controls">
+            <div class="info-box" id="disp-name">画像が選択されていません</div>
+            <div class="info-box" id="disp-size">- KB</div>
+            <button class="btn-upload" onclick="document.getElementById('image-input').click()">ファイル選択</button>
+            <input type="file" id="image-input" accept="image/*" style="display:none">
+        </div>
+    </div>
+
+    <!-- 中部：キャンバスと縦スライダー -->
+    <div class="canvas-area">
+        <div id="canvas-wrapper">
+            <canvas id="main-canvas"></canvas>
+            <div id="selection-box"></div>
+        </div>
+        <div class="ver-slider-container slider-area">
+            <div class="track-v"></div>
+            <input type="range" id="v-low" min="1" max="550" value="50">
+            <input type="range" id="v-upp" min="1" max="550" value="500">
+        </div>
+    </div>
+
+    <!-- 下部：横スライダー -->
+    <div class="hor-slider-container slider-area">
+        <div class="track-h"></div>
+        <input type="range" id="h-low" min="1" max="550" value="50">
+        <input type="range" id="h-upp" min="1" max="550" value="500">
+    </div>
+
+    <!-- 数値入力（1行） -->
+    <div class="value-row">
+        横:<input type="number" id="in-h-low">〜<input type="number" id="in-h-upp">
+        縦:<input type="number" id="in-v-low">〜<input type="number" id="in-v-upp">
+    </div>
+
+<script>
+    const canvas = document.getElementById('main-canvas');
+    const ctx = canvas.getContext('2d');
+    const box = document.getElementById('selection-box');
+    const imageInput = document.getElementById('image-input');
+
+    let currentFileName = "";
+    let currentFileSize = "";
+    let activeImg = null;
+
+    const els = {
+        hl: document.getElementById('h-low'), hu: document.getElementById('h-upp'),
+        vl: document.getElementById('v-low'), vu: document.getElementById('v-upp'),
+        ihl: document.getElementById('in-h-low'), ihu: document.getElementById('in-h-upp'),
+        ivl: document.getElementById('in-v-low'), ivu: document.getElementById('in-v-upp')
+    };
+
+    imageInput.onchange = function(e) {
+        const file = e.target.files[0];
+        if(!file) return;
+
+        currentFileName = file.name;
+        currentFileSize = (file.size / 1024).toFixed(1) + " KB";
+        
+        document.getElementById('disp-name').textContent = currentFileName;
+        document.getElementById('disp-size').textContent = currentFileSize;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => { activeImg = img; draw(); };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+        this.value = ''; // 次回のイベント発火のためリセット
+    };
+
+    function draw() {
+        canvas.width = 550; canvas.height = 550;
+        if(activeImg) {
+            const ratio = Math.min(550 / activeImg.width, 550 / activeImg.height);
+            const w = activeImg.width * ratio; const h = activeImg.height * ratio;
+            ctx.clearRect(0,0,550,550);
+            ctx.drawImage(activeImg, (550-w)/2, (550-h)/2, w, h);
+            document.getElementById('p-box').innerHTML = `<img src="${activeImg.src}" style="width:100%;height:100%;object-fit:contain">`;
+        }
+    }
+
+    function updateUI(e) {
+        // 追い越し防止
+        if(parseInt(els.hl.value) > parseInt(els.hu.value)) {
+            if(e?.target === els.hl) els.hl.value = els.hu.value; else els.hu.value = els.hl.value;
+        }
+        if(parseInt(els.vl.value) > parseInt(els.vu.value)) {
+            if(e?.target === els.vl) els.vl.value = els.vu.value; else els.vu.value = els.vl.value;
+        }
+
+        els.ihl.value = els.hl.value; els.ihu.value = els.hu.value;
+        els.ivl.value = els.vl.value; els.ivu.value = els.vu.value;
+
+        // ボックス描画（%計算でレスポンシブ維持）
+        const r = 100 / 550;
+        box.style.left = (els.hl.value - 1) * r + "%";
+        box.style.top = (els.vl.value - 1) * r + "%";
+        box.style.width = (els.hu.value - els.hl.value) * r + "%";
+        box.style.height = (els.vu.value - els.vl.value) * r + "%";
+    }
+
+    [els.hl, els.hu, els.vl, els.vu].forEach(el => el.oninput = updateUI);
+    updateUI();
+</script>
+</body>
+</html>
