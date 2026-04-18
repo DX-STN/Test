@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f0f0f0; }
+
+        /* ① 550x550 キャンバス */
+        #main-canvas {
+            width: 550px;
+            height: 550px;
+            background: white;
+            border: 2px solid #333;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        /* 選択範囲の可視化レイヤー */
+        #selection-overlay {
+            position: absolute;
+            height: 100%;
+            background: rgba(0, 123, 255, 0.2); /* 範囲を薄く青く塗る */
+            border-left: 2px solid #007bff;
+            border-right: 2px solid #dc3545;
+            pointer-events: none;
+        }
+
+        /* ② 横範囲指定スライダー */
+        .slider-container {
+            position: relative;
+            width: 550px; /* キャンバス幅に合わせる */
+            height: 60px;
+            margin-top: 20px;
+            touch-action: none;
+        }
+
+        input[type="range"] {
+            position: absolute;
+            width: 100%;
+            pointer-events: none;
+            appearance: none;
+            -webkit-appearance: none;
+            background: none;
+            top: 50%;
+            transform: translateY(-50%);
+            margin: 0;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            height: 30px; width: 30px; border-radius: 50%;
+            cursor: pointer; pointer-events: auto;
+            appearance: none; -webkit-appearance: none;
+            border: 3px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        #lower::-webkit-slider-thumb { background: #007bff; }
+        #upper::-webkit-slider-thumb { background: #dc3545; }
+
+        .track {
+            position: absolute; width: 100%; height: 8px;
+            background: #ccc; top: 50%; transform: translateY(-50%);
+            z-index: -1; border-radius: 4px;
+        }
+
+        /* ③ 数値入力エリア */
+        .input-group {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .input-group input {
+            width: 60px;
+            padding: 8px;
+            font-size: 1rem;
+            text-align: center;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .label-blue { color: #007bff; font-weight: bold; }
+        .label-red { color: #dc3545; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <!-- ① キャンバス -->
+    <div id="main-canvas">
+        <div id="selection-overlay"></div>
+    </div>
+
+    <!-- ② スライダー -->
+    <div class="slider-container">
+        <div class="track"></div>
+        <input type="range" id="lower" min="1" max="550" value="100">
+        <input type="range" id="upper" min="1" max="550" value="450">
+    </div>
+
+    <!-- ③ 数値入力 -->
+    <div class="input-group">
+        <span class="label-blue">横 開始:</span>
+        <input type="number" id="input-low" min="1" max="550" value="100">
+        <span class="label-red">終了:</span>
+        <input type="number" id="input-upp" min="1" max="550" value="450">
+        <span>(px)</span>
+    </div>
+
+<script>
+    const lower = document.getElementById('lower');
+    const upper = document.getElementById('upper');
+    const inputLow = document.getElementById('input-low');
+    const inputUpp = document.getElementById('input-upp');
+    const overlay = document.getElementById('selection-overlay');
+
+    function updateAll(e) {
+        let lowVal = parseInt(lower.value);
+        let uppVal = parseInt(upper.value);
+
+        // スライダー同士の追い越し防止
+        if (lowVal > uppVal) {
+            if (e.target === lower) { lower.value = uppVal; lowVal = uppVal; }
+            else { upper.value = lowVal; uppVal = lowVal; }
+        }
+
+        // 入力欄に反映
+        inputLow.value = lowVal;
+        inputUpp.value = uppVal;
+
+        // z-index制御（重なり対策）
+        lower.style.zIndex = (e.target === lower) ? "10" : "1";
+        upper.style.zIndex = (e.target === upper) ? "10" : "1";
+
+        // キャンバス上の表示を更新
+        const left = (lowVal - 1); // 1px開始なので座標は-1
+        const width = (uppVal - lowVal) + 1;
+        overlay.style.left = left + "px";
+        overlay.style.width = width + "px";
+    }
+
+    // 入力欄が変更された時の処理
+    function handleInputChange() {
+        lower.value = inputLow.value;
+        upper.value = inputUpp.value;
+        updateAll({ target: null });
+    }
+
+    lower.addEventListener('input', updateAll);
+    upper.addEventListener('input', updateAll);
+    inputLow.addEventListener('change', handleInputChange);
+    inputUpp.addEventListener('change', handleInputChange);
+
+    // 初期表示
+    updateAll({ target: lower });
+</script>
+
+</body>
+</html>
