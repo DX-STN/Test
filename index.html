@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Pixel Tool</title>
+
+<style>
+body {
+  margin:0;
+  background:#000;
+  color:#fff;
+  font-family:sans-serif;
+  overflow:hidden;
+}
+
+/* 上部固定UI */
+#topUI {
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  padding:10px;
+  background:#000;
+  z-index:10;
+  text-align:center;
+}
+
+/* 下部固定UI */
+#bottomUI {
+  position:fixed;
+  bottom:0;
+  width:100%;
+  text-align:center;
+  z-index:10;
+}
+
+button {
+  padding:12px 20px;
+  border-radius:30px;
+  border:none;
+  margin:5px;
+}
+
+/* 表示エリア */
+#viewer {
+  position:absolute;
+  top:60px;
+  bottom:80px;
+  left:0;
+  right:0;
+  overflow:hidden;
+  touch-action:none;
+}
+
+canvas {
+  position:absolute;
+  left:0;
+  top:0;
+}
+
+/* 選択枠 */
+#selection {
+  position:absolute;
+  border:2px solid #fff;
+}
+
+/* 4辺ハンドル */
+.handle {
+  position:absolute;
+  width:30px;
+  height:30px;
+  background:#fff;
+  opacity:0.7;
+}
+
+.top { top:-15px; left:50%; transform:translateX(-50%); cursor:n-resize;}
+.bottom { bottom:-15px; left:50%; transform:translateX(-50%);}
+.left { left:-15px; top:50%; transform:translateY(-50%);}
+.right { right:-15px; top:50%; transform:translateY(-50%);}
+
+</style>
+</head>
+
+<body>
+
+<div id="topUI">
+<input type="file" id="fileInput" accept="image/*">
+</div>
+
+<div id="viewer">
+  <canvas id="canvas"></canvas>
+
+  <div id="selection">
+    <div class="handle top"></div>
+    <div class="handle bottom"></div>
+    <div class="handle left"></div>
+    <div class="handle right"></div>
+  </div>
+</div>
+
+<div id="bottomUI">
+<button onclick="exportData()">保存</button>
+</div>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const viewer = document.getElementById("viewer");
+const fileInput = document.getElementById("fileInput");
+const selection = document.getElementById("selection");
+
+let img = new Image();
+
+/* 表示スケール */
+let scale = 1;
+let offsetX = 0;
+let offsetY = 0;
+
+/* ピンチ */
+let pointers = [];
+
+viewer.addEventListener("pointerdown", e=>{
+  viewer.setPointerCapture(e.pointerId);
+  pointers.push(e);
+});
+
+viewer.addEventListener("pointermove", e=>{
+  pointers = pointers.map(p=>p.pointerId===e.pointerId?e:p);
+
+  if(pointers.length===2){
+    const dx = pointers[0].clientX - pointers[1].clientX;
+    const dy = pointers[0].clientY - pointers[1].clientY;
+    const dist = Math.sqrt(dx*dx+dy*dy);
+
+    if(!viewer.lastDist) viewer.lastDist = dist;
+
+    let zoom = dist / viewer.lastDist;
+    scale *= zoom;
+    scale = Math.max(0.5, Math.min(scale, 5));
+    viewer.lastDist = dist;
+
+    draw();
+  }
+});
+
+viewer.addEventListener("pointerup", e=>{
+  pointers = pointers.filter(p=>p.pointerId!==e.pointerId);
+  viewer.lastDist = null;
+});
+
+/* 画像読み込み */
+fileInput.onchange = e=>{
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    img.onload = ()=>{
+      canvas.width = img.width;
+      canvas.height = img.height;
+      scale = 1;
+      offsetX = 0;
+      offsetY = 0;
+      draw();
+
+      // 初期選択
+      selection.style.left = "50px";
+      selection.style.top = "50px";
+      selection.style.width = "100px";
+      selection.style.height = "100px";
+    };
+    img.src = ev.target.result;
+    img.name = file.name;
+  };
+  reader.readAsDataURL(file);
+};
+
+/* 描画 */
+function draw(){
+  ctx.setTransform(scale,0,0,scale,offsetX,offsetY);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(img,0,0);
+}
+
+/* ハンドル操作 */
+let activeHandle = null;
+
+document.querySelectorAll(".handle").forEach(h=>{
+  h.addEventListener("pointerdown", e=>{
+    activeHandle = h.classList[1];
+    e.stopPropagation();
+  });
+});
+
+viewer.addEventListener("pointermove", e=>{
+  if(!activeHandle) return;
+
+  let rect = selection.getBoundingClientRect();
+  let parent = viewer.getBoundingClientRect();
+
+  let x = rect.left - parent.left;
+  let y = rect.top - parent.top;
+  let w = rect.width;
+  let h = rect.height;
+
+  if(activeHandle==="right") w = e.clientX - rect.left;
+  if(activeHandle==="left"){
+    w = rect.right - e.clientX;
+    x = e.clientX - parent.left;
+  }
+  if(activeHandle==="bottom") h = e.clientY - rect.top;
+  if(activeHandle==="top"){
+    h = rect.bottom - e.clientY;
+    y = e.clientY - parent.top;
+  }
+
+  // 152制限
+  w = Math.min(w,152);
+  h = Math.min(h,152);
+
+  selection.style.left = x+"px";
+  selection.style.top = y+"px";
+  selection.style.width = w+"px";
+  selection.style.height = h+"px";
+});
+
+viewer.addEventListener("pointerup", ()=>activeHandle=null);
+
+/* 保存 */
+function exportData(){
+  alert("ここにピクセル取得処理を入れる（次段階）");
+}
+</script>
+
+</body>
+</html>
