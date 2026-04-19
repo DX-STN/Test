@@ -134,7 +134,8 @@
     wrapper.onpointerup = () => { isDragging = false; };
 
     imgIn.onchange = (e) => {
-        const file = e.target.files;
+    //    const file = e.target.files;
+        const file = e.target.files[0]; // ここが [0] になっているか！
         if(!file) return;
         el.fn.textContent = file.name;
         const img = new Image();
