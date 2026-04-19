@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Export Tool</title>
+
+<style>
+body {
+  margin:0;
+  background:#000;
+  color:#fff;
+  font-family:sans-serif;
+  text-align:center;
+}
+
+canvas {
+  max-width:100%;
+  touch-action:none;
+}
+
+#selectBox {
+  position:absolute;
+  border:2px solid #fff;
+  pointer-events:none;
+}
+
+button {
+  margin:10px;
+  padding:15px;
+  border-radius:50px;
+  border:none;
+  font-size:18px;
+}
+
+#menu {
+  display:none;
+  background:#111;
+  padding:10px;
+}
+</style>
+</head>
+
+<body>
+
+<input type="file" id="fileInput" accept="image/*">
+
+<br>
+
+<canvas id="canvas"></canvas>
+<div id="selectBox"></div>
+
+<br>
+
+<button onclick="confirmArea()">決定</button>
+<button onclick="toggleMenu()">メニュー</button>
+
+<div id="menu">
+  <button onclick="exportData('json')">JSON保存</button>
+  <button onclick="exportData('csv')">Excel(CSV)</button>
+</div>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const fileInput = document.getElementById("fileInput");
+const box = document.getElementById("selectBox");
+
+let img = new Image();
+let startX, startY, endX, endY;
+let selecting = false;
+
+fileInput.onchange = e => {
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = ev => {
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+    };
+    img.src = ev.target.result;
+    img.name = file.name;
+  };
+  reader.readAsDataURL(file);
+};
+
+// タッチ・マウス対応
+canvas.addEventListener("pointerdown", e => {
+  selecting = true;
+  startX = e.offsetX;
+  startY = e.offsetY;
+});
+
+canvas.addEventListener("pointermove", e => {
+  if (!selecting) return;
+
+  let w = e.offsetX - startX;
+  let h = e.offsetY - startY;
+
+  // 最大152制限
+  w = Math.max(Math.min(w,152), -152);
+  h = Math.max(Math.min(h,152), -152);
+
+  endX = startX + w;
+  endY = startY + h;
+
+  box.style.left = Math.min(startX,endX)+"px";
+  box.style.top = Math.min(startY,endY)+"px";
+  box.style.width = Math.abs(w)+"px";
+  box.style.height = Math.abs(h)+"px";
+});
+
+canvas.addEventListener("pointerup", () => selecting=false);
+
+function confirmArea(){
+  alert("範囲確定");
+}
+
+function toggleMenu(){
+  const m = document.getElementById("menu");
+  m.style.display = m.style.display==="block"?"none":"block";
+}
+
+function exportData(type){
+  const x1 = Math.floor(Math.min(startX,endX));
+  const y1 = Math.floor(Math.min(startY,endY));
+  const x2 = Math.floor(Math.max(startX,endX));
+  const y2 = Math.floor(Math.max(startY,endY));
+
+  const data = [];
+
+  for(let y=y1; y<y2; y++){
+    for(let x=x1; x<x2; x++){
+      const pixel = ctx.getImageData(x,y,1,1).data;
+      const r=pixel[0], g=pixel[1], b=pixel[2];
+      const hex = "#" + [r,g,b].map(v=>v.toString(16).padStart(2,"0")).join("");
+
+      data.push({
+        image: img.name,
+        x, y,
+        hex,
+        r, g, b
+      });
+    }
+  }
+
+  if(type==="json"){
+    download(JSON.stringify(data,null,2), "data.json");
+  } else {
+    let csv = "image,x,y,hex,r,g,b\n";
+    data.forEach(d=>{
+      csv += `${d.image},${d.x},${d.y},${d.hex},${d.r},${d.g},${d.b}\n`;
+    });
+    download(csv, "data.csv");
+  }
+}
+
+function download(content, filename){
+  const blob = new Blob([content], {type:"text/plain"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+</script>
+
+</body>
+</html>
